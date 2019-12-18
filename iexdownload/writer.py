@@ -1,101 +1,46 @@
-from typing import Dict, Set
+import random
+from typing import List
 
 import pandas as pd
-import pymysql
+from sqlalchemy import create_engine
 
 
 class DBWriter(object):
 
-    def __init__(self, user, password, host="localhost"):
-        self.host = host
-        self.username = user
-        self.password = password
-        self.connection = pymysql.connect(host=host, user=user, password=password)
-        self.db = self.get_db(self.connection)
-        self.table = {db: self.get_table(self.connection, db) for db in self.db["Database"]}
+    def __init__(self, user, password, db, host="localhost", sql_dialect="mysql", port="3306"):
 
-    @staticmethod
-    def get_db(conn):
-        query_db = "SHOW DATABASES"
-        db = pd.read_sql(query_db, conn)
+        db_connectors = {"mysql": "mysql+pymysql"}
+        self.con = create_engine(f"{db_connectors[sql_dialect]}://{user}:{password}@{host}:{port}/{db}")
 
-        return db
+    def write_df(self, df, table: str, pk: List[str] = []):
 
-    @staticmethod
-    def get_table(conn, db: str):
-        query_table = f"""
-            SELECT table_name
-              FROM information_schema.tables
-             WHERE table_schema = '{db}'
-        """
-        table = pd.read_sql(query_table, conn)
+        try:
+            df.to_sql(name=table, con=self.con, if_exists="fail", index=False)
 
-        return table
+        except ValueError:
 
-    def create_db(self, db: str):
+            query_cols = f"""
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_NAME = '{table}'
+            """
+            cols = pd.read_sql(query_cols, con=self.con)["COLUMN_NAME"].values
+            pk = list(set(pk) & set(cols))
+            cols = list(set(cols) - set(pk))
+            temp_table = f"temp_{table}_{random.randint(0, 1e20)}"
+            df.to_sql(name=temp_table, con=self.con, if_exists="fail")
 
-        self.update_db()
-        if db not in self.db["Database"].values:
-            try:
-                with self.connection.cursor() as cursor:
-                    sql = f"CREATE DATABASE IF NOT EXISTS {db}"
-                    cursor.execute(sql)
-
-                self.connection.commit()
-
-            finally:
-                self.update_db()
-
-    def create_table(self, db: str, table: str, cols: Dict, pk: Set[str]):
-
-        self.create_db(db)
-        self.update_table()
-
-        if table not in self.table[db]["TABLE_NAME"].values:
-
-            try:
-                with self.connection.cursor() as cursor:
-                    cols[key] = (f"{cols[key]} PRIMARY KEY" for key in pk)
-                    create_def = ",\n".join((f"{key} {value}" for key, value in cols.items()))
-                    sql = f"""
-                    CREATE TABLE IF NOT EXISTS {db}.{table} (
-                    {create_def}
-                    );
-                    """
-                    cursor.execute(sql)
-
-                self.connection.commit()
-
-            finally:
-                self.update_table()
-
-    def update_db(self):
-        self.db = self.get_db(self.connection)
-
-    def update_table(self):
-        self.update_db()
-        self.table = {db: self.get_table(self.connection, db) for db in self.db["Database"]}
-
-    def write_df(self, df, db: str, table: str):
-
-        self.create_db(db)
-        self.create_table(db, table)
-
-        if table in self.table[db]["TABLE_NAME"].values:
-            # Table already exist
-            print("WOW")
-        else:
-            print("NO")
+            sql_update = f"""
+            UPDATE {table} AS main, {temp_table} AS temp
+            SET {", ".join([f"main.{col} = temp.{col}" for col in cols])}
+            WHERE {" AND ".join([f"main.{key} = temp.{key}" for key in pk])}
+            """
+            print(sql_update)
+            self.con.execute(sql_update)
+            self.con.execute(f"DROP TABLE {temp_table}")
 
 
-test = DBWriter(user="root", password="password")
-print(test.db)
-print(any(test.table['DW']['TABLE_NAME'].isin(["eod_attr"])))
-test.write_df(df=0, db="DW", table="eod_attr")
-test.write_df(df=0, db="DW1", table="eod_attr")
-print(test.connection)
-test.create_db("test")
-test.create_table("test", "testtable", cols={"datetime": "INT", "value": "VARCHAR(100)"}, pk={"datetime"})
-test.update_table()
-print(test.db)
-print(test.table)
+test = DBWriter(user="root", password="password", db="DW1")
+tempdf = pd.read_sql("SELECT * FROM nav", con=test.con).head()
+test.write_df(pd.read_sql("SELECT * FROM nav", con=test.con).head(), "test", pk=["tradeday", "account"])
+tempdf["nav"][1] = 1000
+test.write_df(tempdf, "test", pk=["tradeday", "account"])
