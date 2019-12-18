@@ -6,7 +6,9 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
-iexcloud = ">=0.2.0"
+iexcloud = ">=0.4.1"
+pandas = "*"
+pymysql = "*"
 
 [requires]
 python_version = "3.7"
