@@ -1,13 +1,17 @@
 from typing import List
+
 from iexcloud.reference import Reference
 from iexcloud.stock import Stock
+
+from iexdownload.writer import DBWriter
 
 
 class Downloader(object):
 
-    def __init__(self, symbol: List[str] = None):
+    def __init__(self, symbol: List[str] = None, db=List[DBWriter]):
 
         self.ref = Reference()
+        self.db = db
 
         if symbol is None:
             self.symbol = set()
@@ -15,7 +19,6 @@ class Downloader(object):
         else:
             if type(symbol) is not list:
                 symbol = [symbol]
-
             self.symbol = set(symbol)
             self.stock = {key: Stock(key, output="pandas") for key in self.symbol}
 
@@ -32,8 +35,6 @@ class Downloader(object):
     def download_price(self, time_range="5d") -> None:
 
         for stock in self.stock.values():
-            stock.get_price(time_range=time_range)
 
-
-download = Downloader(symbol=["AAPL", "GOOGL"])
-
+            for writer in self.db:
+                writer.write_df(stock.get_price(time_range=time_range), table="price", pk=["date", "symbol"])
