@@ -7,7 +7,6 @@ from iexdownload.writer import DBWriter
 
 
 class Downloader(object):
-
     def __init__(self, symbol: List[str] = None, db=List[DBWriter]):
 
         self.ref = Reference()
@@ -36,5 +35,18 @@ class Downloader(object):
 
         for stock in self.stock.values():
 
-            for writer in self.db:
-                writer.write_df(stock.get_price(time_range=time_range), table="price", pk=["date", "symbol"])
+            price = stock.get_price(time_range=time_range)
+
+            if price.shape[0] > 0:
+                for writer in self.db:
+                    writer.write_df(price, table="price", pk=["date", "symbol"])
+
+    def download_dividend(self, time_range="1m") -> None:
+
+        for stock in self.stock.values():
+
+            dividend = stock.get_dividend(time_range=time_range)
+
+            if dividend.shape[0] > 0:
+                for writer in self.db:
+                    writer.write_df(dividend, table="dividend", pk=["exDate", "symbol"])
