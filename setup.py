@@ -21,7 +21,7 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
-install_reqs = ["iexcloud>=0.0.1"]
+install_reqs = ["iexcloud>=0.0.1", "pandas>=1.0.0"]
 
 if __name__ == "__main__":
     setup(

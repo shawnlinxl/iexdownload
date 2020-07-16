@@ -1,3 +1,4 @@
+import pandas as pd
 from typing import List
 from iexcloud import Stock
 
@@ -51,3 +52,13 @@ class Downloader(object):
             if data.shape[0] > 0:
                 for writer in self.writer:
                     writer.write(data, f"split/{stock.symbol}.csv")
+
+    def download_profile(self) -> None:
+
+        for stock in self.stock.values():
+            data = stock.get_profile()
+            data = pd.DataFrame.from_dict(data)
+
+            if data.shape[0] > 0:
+                for writer in self.writer:
+                    writer.write(data, f"profile/{stock.symbol}.csv")
