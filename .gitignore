@@ -142,3 +142,7 @@ cython_debug/
 
 # Environment variables for development use
 .env
+
+# Data
+production
+staging

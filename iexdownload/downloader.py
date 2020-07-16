@@ -1,25 +1,17 @@
 from typing import List
-
-from iexcloud.reference import Reference
-from iexcloud.stock import Stock
-
-from iexdownload.writer import DBWriter
+from iexcloud import Stock
 
 
 class Downloader(object):
-    def __init__(self, symbol: List[str] = None, db=List[DBWriter]):
+    def __init__(self):
 
-        self.ref = Reference()
-        self.db = db
+        self.symbol = set()
+        self.stock = dict()
+        self.writer = list()
 
-        if symbol is None:
-            self.symbol = set()
-            self.stock = dict()
-        else:
-            if type(symbol) is not list:
-                symbol = [symbol]
-            self.symbol = set(symbol)
-            self.stock = {key: Stock(key, output="pandas") for key in self.symbol}
+    def add_writer(self, writer):
+
+        self.writer.append(writer)
 
     def add_symbol(self, symbol: List[str]):
 
@@ -31,22 +23,31 @@ class Downloader(object):
             if s not in self.stock:
                 self.stock[s] = Stock(s, output="pandas")
 
-    def download_price(self, time_range="5d") -> None:
+    def download_price(self, time_range: str = "5d") -> None:
 
         for stock in self.stock.values():
 
-            price = stock.get_price(time_range=time_range)
+            data = stock.get_price(time_range=time_range)
 
-            if price.shape[0] > 0:
-                for writer in self.db:
-                    writer.write_df(price, table="price", pk=["date", "symbol"])
+            if data.shape[0] > 0:
+                for writer in self.writer:
+                    writer.write(data, f"price/{stock.symbol}.csv")
 
-    def download_dividend(self, time_range="1m") -> None:
+    def download_dividend(self, time_range: str = "1m") -> None:
 
         for stock in self.stock.values():
 
-            dividend = stock.get_dividend(time_range=time_range)
+            data = stock.get_dividend(time_range=time_range)
 
-            if dividend.shape[0] > 0:
-                for writer in self.db:
-                    writer.write_df(dividend, table="dividend", pk=["exDate", "symbol"])
+            if data.shape[0] > 0:
+                for writer in self.writer:
+                    writer.write(data, f"dividend/{stock.symbol}.csv")
+
+    def download_split(self, time_range: str = "1m") -> None:
+
+        for stock in self.stock.values():
+            data = stock.get_split(time_range=time_range)
+
+            if data.shape[0] > 0:
+                for writer in self.writer:
+                    writer.write(data, f"split/{stock.symbol}.csv")

@@ -12,6 +12,7 @@ pydata-sphinx-theme = "*"
 twine = "*"
 coverage = "*"
 pytest-cov = "*"
+iexdownload = {editable = true, path = "."}
 
 [packages]
 iexcloud = "*"
